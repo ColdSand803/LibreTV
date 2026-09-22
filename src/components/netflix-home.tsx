@@ -110,7 +110,7 @@ export function NetflixHome({ onPick }: NetflixHomeProps) {
       )}
 
       {/* 内容行列表 (Rails) */}
-      <div className={!cat ? '-mt-16 sm:-mt-24 relative z-30' : 'pt-20'}>
+      <div className={!cat ? '-mt-4 sm:-mt-20 relative z-30' : 'pt-24 sm:pt-20'}>
         {/* 继续观看 (若有观看历史则置顶展示) */}
         {(!cat || cat === 'all') && historyItems.length > 0 && (
           <NetflixRow

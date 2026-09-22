@@ -180,7 +180,7 @@ function HomeContent() {
               </div>
             ) : list.length > 0 ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
                   {visibleGroups.map((group) => (
                     <AggregatedCard
                       key={group.key}
@@ -202,7 +202,7 @@ function HomeContent() {
                 )}
               </>
             ) : isSearching ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="aspect-[2/3] bg-zinc-900 animate-pulse rounded-md border border-zinc-800" />
                 ))}

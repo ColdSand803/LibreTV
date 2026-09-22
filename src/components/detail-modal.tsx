@@ -126,7 +126,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
         aria-label={`${item.name} 详情`}
       >
         {/* 顶部横幅区（带背景图与快捷播放） */}
-        <div className="relative h-48 sm:h-64 bg-zinc-900 shrink-0 overflow-hidden">
+        <div className="relative h-44 sm:h-64 bg-zinc-900 shrink-0 overflow-hidden">
           {poster && !posterFailed && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -147,12 +147,12 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
           </button>
 
           {/* 横幅浮动标题与快速播放按钮 */}
-          <div className="absolute bottom-4 left-6 right-6 z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div className="absolute bottom-3 left-4 right-4 sm:bottom-4 sm:left-6 sm:right-6 z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
               <span className="text-[11px] font-bold text-red-500 uppercase tracking-widest bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded">
                 {item.sourceName}
               </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 drop-shadow-md truncate">
+              <h2 className="text-lg sm:text-3xl font-black text-white mt-0.5 sm:mt-1 drop-shadow-md truncate">
                 {item.name}
               </h2>
             </div>
@@ -160,7 +160,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
             {episodes.length > 0 && (
               <button
                 onClick={() => play(0)}
-                className="btn-netflix-play text-sm px-5 py-2 shrink-0 cursor-pointer self-start sm:self-auto"
+                className="btn-netflix-play text-xs sm:text-sm px-4 sm:px-5 py-1.5 sm:py-2 shrink-0 cursor-pointer self-start sm:self-auto"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-black">
                   <path d="M8 5v14l11-7z" />
@@ -172,7 +172,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
         </div>
 
         {/* 主体滚动区 */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 sm:space-y-6">
           {loading && <LoadingState label="正在从采集站解析剧集与线路..." />}
           {!loading && error && <ErrorState message={error} />}
 
@@ -225,13 +225,13 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
                   </div>
 
                   {/* 分集网格按钮 */}
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 sm:gap-2">
                     {episodes.map((ep, i) => {
                       const actualIndex = reversed ? episodes.length - 1 - i : i;
                       return (
                         <button
                           key={ep}
-                          className="px-3 py-2.5 rounded bg-zinc-800/80 hover:bg-red-600 hover:text-white border border-zinc-700/50 text-zinc-200 text-xs font-medium text-center truncate transition-all active:scale-95 cursor-pointer shadow-sm"
+                          className="px-2 sm:px-3 py-2 sm:py-2.5 rounded bg-zinc-800/80 hover:bg-red-600 hover:text-white border border-zinc-700/50 text-zinc-200 text-xs font-medium text-center truncate transition-all active:scale-95 cursor-pointer shadow-sm"
                           onClick={() => play(actualIndex)}
                           title={`播放第 ${actualIndex + 1} 集`}
                         >

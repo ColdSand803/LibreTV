@@ -181,7 +181,7 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
 
                 {/* 搜索历史下拉 */}
                 {searchHistory.visible && searchExpanded && (
-                  <div className="absolute top-11 right-0 w-72 max-w-[90vw]">
+                  <div className="absolute top-full mt-2 left-0 right-0 sm:left-auto sm:right-0 sm:w-72 z-50">
                     <SearchHistoryDropdown
                       id="header-search-history"
                       matches={searchHistory.matches}

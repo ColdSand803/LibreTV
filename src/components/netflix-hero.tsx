@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { buildImageUrl } from '@/lib/utils';
+import { useAppStore } from '@/lib/store';
 import type { DoubanItem } from '@/lib/types';
 
 interface NetflixHeroProps {
@@ -11,6 +13,9 @@ interface NetflixHeroProps {
 
 export function NetflixHero({ items, onPlay, onMoreInfo }: NetflixHeroProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const imageProxyMode = useAppStore((s) => s.imageProxyMode);
+  const customImageProxy = useAppStore((s) => s.customImageProxy);
+  const [tryProxy, setTryProxy] = useState(false);
 
   if (!items || items.length === 0) {
     return (
@@ -24,19 +29,39 @@ export function NetflixHero({ items, onPlay, onMoreInfo }: NetflixHeroProps) {
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % items.length);
+    setTryProxy(false);
   };
 
+  const currentCover = (() => {
+    if (!current?.cover) return '';
+    if (tryProxy && !current.cover.startsWith('/api/proxy/')) {
+      return `/api/proxy/${encodeURIComponent(current.cover)}`;
+    }
+    return buildImageUrl(current.cover, imageProxyMode, customImageProxy) || current.cover;
+  })();
+
+  useEffect(() => {
+    setTryProxy(false);
+  }, [current?.cover, imageProxyMode]);
   return (
     <div className="relative w-full h-[58vh] sm:h-[78vh] lg:h-[85vh] overflow-hidden select-none">
       {/* 巨幅背景海报 */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        key={current.id || current.title}
-        src={current.cover}
-        alt={current.title}
-        className="absolute inset-0 w-full h-full object-cover object-center filter brightness-90 transform scale-105 transition-all duration-1000 ease-out"
-        referrerPolicy="no-referrer"
-      />
+      {currentCover && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={currentCover}
+          src={currentCover}
+          alt={current.title}
+          onError={() => {
+            if (!tryProxy && !currentCover.startsWith('/api/proxy/')) {
+              setTryProxy(true);
+            }
+          }}
+          className="absolute inset-0 w-full h-full object-cover object-center filter brightness-90 transform scale-105 transition-all duration-1000 ease-out"
+          referrerPolicy="no-referrer"
+        />
+      )}
 
       {/* Netflix 经典三重渐变遮罩：左侧文字黑雾、底部无缝融入、顶部暗影 */}
       <div className="absolute inset-0 netflix-vignette" />

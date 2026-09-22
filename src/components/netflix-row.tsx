@@ -1,6 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { buildImageUrl } from '@/lib/utils';
+import { useAppStore } from '@/lib/store';
 
 export interface NetflixRowCardItem {
   id: string | number;
@@ -100,7 +102,33 @@ export function NetflixRow({ title, items, onPick, subtitle }: NetflixRowProps) 
 }
 
 function NetflixCard({ item, onPick }: { item: NetflixRowCardItem; onPick: (title: string) => void }) {
+  const imageProxyMode = useAppStore((s) => s.imageProxyMode);
+  const customImageProxy = useAppStore((s) => s.customImageProxy);
   const [imgError, setImgError] = useState(false);
+  const [tryProxy, setTryProxy] = useState(false);
+
+  // 计算当前图片源地址：如果开启了代理或直连失败后自动降级到代理
+  const currentCover = (() => {
+    if (!item.cover) return '';
+    if (tryProxy && !item.cover.startsWith('/api/proxy/')) {
+      return `/api/proxy/${encodeURIComponent(item.cover)}`;
+    }
+    return buildImageUrl(item.cover, imageProxyMode, customImageProxy) || item.cover;
+  })();
+
+  useEffect(() => {
+    setImgError(false);
+    setTryProxy(false);
+  }, [item.cover, imageProxyMode]);
+
+  const handleError = () => {
+    // 如果直连失败且尚未尝试内置代理，则自动降级到 /api/proxy 重试一次（解决豆瓣等图床防盗链）
+    if (!tryProxy && !currentCover.startsWith('/api/proxy/')) {
+      setTryProxy(true);
+    } else {
+      setImgError(true);
+    }
+  };
 
   return (
     <div
@@ -109,12 +137,13 @@ function NetflixCard({ item, onPick }: { item: NetflixRowCardItem; onPick: (titl
     >
       {/* 海报图 */}
       <div className="relative aspect-[2/3] w-full bg-zinc-800 overflow-hidden">
-        {item.cover && !imgError ? (
+        {currentCover && !imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={item.cover}
+            key={currentCover}
+            src={currentCover}
             alt={item.title}
-            onError={() => setImgError(true)}
+            onError={handleError}
             className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
             loading="lazy"
             referrerPolicy="no-referrer"

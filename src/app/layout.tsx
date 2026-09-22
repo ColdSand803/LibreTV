@@ -1,10 +1,10 @@
-import type { Metadata, Viewport } from 'next';
+﻿import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'LibreTV - 免费在线视频搜索与观看平台',
+    default: 'LibreFlix - 免费在线观影平台 (Netflix 风格)',
     template: '%s - LibreTV',
   },
   description:
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0b101a',
+  themeColor: '#141414',
   width: 'device-width',
   initialScale: 1,
 };

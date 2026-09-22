@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -7,17 +7,14 @@ import type { SearchResultItem, VideoDetail } from '@/lib/types';
 import { buildImageUrl, buildWatchUrl } from '@/lib/utils';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';
-import { cn } from '@/lib/utils';
 import { addSearchHistory } from '@/lib/db';
-import { EmptyState, ErrorState, LoadingState } from './states';
+import { ErrorState, LoadingState } from './states';
 import { useFocusTrap } from './use-focus-trap';
-import { Icon } from './icon';
 
 /**
- * 详情弹窗：剧集列表 + 排序 + 复制链接。
- * 剧集点击 → /watch 路由（URL 携带定位参数，可分享、可后退）。
+ * Netflix 风格沉浸式详情弹窗：
+ * 经典暗黑大弹窗、巨幅剧照渐变横幅、快捷「▶ 立即播放」大按钮、分集瓷砖网格与排序
  */
-
 export function DetailModal({ item, onClose }: { item: SearchResultItem | null; onClose: () => void }) {
   const store = useAppStore();
   const router = useRouter();
@@ -31,12 +28,10 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
   const panelRef = useRef<HTMLDivElement>(null);
   const poster = buildImageUrl(item?.pic, store.imageProxyMode, store.customImageProxy);
 
-  // 打开时把焦点移入弹窗、Tab 圈闭在弹窗内、关闭后归还焦点
   useFocusTrap(Boolean(item), panelRef);
 
   useEffect(() => setPosterFailed(false), [poster]);
 
-  // 弹窗打开期间锁定背景滚动
   useEffect(() => {
     if (!item) return;
     const prev = document.body.style.overflow;
@@ -70,21 +65,12 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
       .then((d) => setDetail(d))
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : '获取详情失败');
+        setError(err instanceof Error ? err.message : '获取剧集详情失败');
       })
       .finally(() => setLoading(false));
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
 
-  useEffect(() => {
-    if (!item) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [item, onClose]);
+    return () => controller.abort();
+  }, [item, store]);
 
   if (!item) return null;
 
@@ -121,12 +107,12 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
     info?.area && ['地区', info.area],
     info?.director && ['导演', info.director],
     info?.actor && ['主演', info.actor],
-    info?.remarks && ['备注', info.remarks],
+    info?.remarks && ['状态', info.remarks],
   ].filter(Boolean) as [string, string][];
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/80 py-10 px-4 animate-fade-in"
+      className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/85 p-3 sm:p-6 backdrop-blur-sm animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -134,104 +120,131 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="bg-surface-raised rounded-xl w-full max-w-3xl shadow-2xl animate-slide-up outline-none"
+        className="bg-[#181818] border border-zinc-800 text-white rounded-xl w-full max-w-3xl shadow-2xl overflow-hidden animate-slide-up outline-none my-auto max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label={`${item.name} 详情`}
       >
-        <div className="flex items-start justify-between gap-4 p-5 pb-3 border-b border-line">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-content break-words">{item.name}</h2>
-            <span className="text-sm text-faint">{item.sourceName}</span>
-          </div>
+        {/* 顶部横幅区（带背景图与快捷播放） */}
+        <div className="relative h-48 sm:h-64 bg-zinc-900 shrink-0 overflow-hidden">
+          {poster && !posterFailed && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={poster}
+              alt={item.name}
+              className="absolute inset-0 w-full h-full object-cover filter brightness-75 scale-105"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/60 to-black/30" />
+
+          {/* 右上角关闭按钮 */}
           <button
-            className="p-1.5 rounded-md text-muted hover:text-content hover:bg-hover shrink-0"
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-sm transition-colors z-20 cursor-pointer"
             onClick={onClose}
             aria-label="关闭"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            ✕
           </button>
+
+          {/* 横幅浮动标题与快速播放按钮 */}
+          <div className="absolute bottom-4 left-6 right-6 z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="min-w-0">
+              <span className="text-[11px] font-bold text-red-500 uppercase tracking-widest bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded">
+                {item.sourceName}
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white mt-1 drop-shadow-md truncate">
+                {item.name}
+              </h2>
+            </div>
+
+            {episodes.length > 0 && (
+              <button
+                onClick={() => play(0)}
+                className="btn-netflix-play text-sm px-5 py-2 shrink-0 cursor-pointer self-start sm:self-auto"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-black">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span>播放第 1 集</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="p-5 pt-4">
-          {loading && <LoadingState label="正在获取剧集信息..." />}
-
-          {!loading && error && <ErrorState message={error || '获取失败'} />}
+        {/* 主体滚动区 */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {loading && <LoadingState label="正在从采集站解析剧集与线路..." />}
+          {!loading && error && <ErrorState message={error} />}
 
           {!loading && !error && detail && (
             <>
-              <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                {poster && !posterFailed && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={poster}
-                    alt={item.name}
-                    className="w-24 sm:w-32 aspect-[2/3] object-cover rounded-lg bg-chip shrink-0 self-center sm:self-start"
-                    onError={() => setPosterFailed(true)}
-                  />
+              {/* 演职员与元数据 */}
+              <div className="space-y-3">
+                {metaRows.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                    {metaRows.map(([k, v]) => (
+                      <div key={k} className="truncate">
+                        <span className="text-zinc-500 font-medium">{k}：</span>
+                        <span className="text-zinc-300">{v}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-                <div className="min-w-0 space-y-3">
-                  {metaRows.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-                      {metaRows.map(([k, v]) => (
-                        <div key={k} className="truncate" title={`${k}: ${v}`}>
-                          <span className="text-faint">{k}:</span>{' '}
-                          <span className="text-content">{v}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {info?.desc && (
-                    <p className="text-sm text-muted leading-relaxed line-clamp-3">{info.desc}</p>
-                  )}
-                </div>
+                {info?.desc && (
+                  <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed bg-zinc-900/60 p-3 rounded-lg border border-zinc-800/60">
+                    {info.desc}
+                  </p>
+                )}
               </div>
 
+              {/* 选集区域 */}
               {episodes.length > 0 ? (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-zinc-800">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white">选集播放</h3>
+                      <span className="text-xs text-zinc-500">共 {episodes.length} 集</span>
+                    </div>
+
                     <div className="flex items-center gap-2">
                       <button
-                        className="btn-ghost btn-sm"
+                        className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors cursor-pointer"
                         onClick={() => setReversed((v) => !v)}
-                        aria-label={reversed ? '切换为正序排列' : '切换为倒序排列'}
-                        title="调整剧集列表的排列顺序"
+                        title="正序/倒序排列"
                       >
-                        <Icon
-                          name="arrowDown"
-                          className={cn('w-3.5 h-3.5 transition-transform', reversed && 'rotate-180')}
-                        />
-                        {reversed ? '正序排列' : '倒序排列'}
+                        {reversed ? '倒序' : '正序'}
                       </button>
-                      <span className="text-sm text-faint">共 {episodes.length} 集</span>
+                      <button
+                        className="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition-colors cursor-pointer"
+                        onClick={copyLinks}
+                        title="复制全部播放链接"
+                      >
+                        复制链接
+                      </button>
                     </div>
-                    <button className="btn-primary btn-sm" onClick={copyLinks}>
-                      复制链接
-                    </button>
                   </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-2 max-h-[40vh] overflow-y-auto scrollbar-thin pr-1">
-                    {episodes.map((_, i) => {
-                      const realIndex = reversed ? detail.episodes.length - 1 - i : i;
+
+                  {/* 分集网格按钮 */}
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                    {episodes.map((ep, i) => {
+                      const actualIndex = reversed ? episodes.length - 1 - i : i;
                       return (
                         <button
-                          key={realIndex}
-                          className="btn-ghost btn-sm !px-1 text-center"
-                          onClick={() => play(realIndex)}
+                          key={ep}
+                          className="px-3 py-2.5 rounded bg-zinc-800/80 hover:bg-red-600 hover:text-white border border-zinc-700/50 text-zinc-200 text-xs font-medium text-center truncate transition-all active:scale-95 cursor-pointer shadow-sm"
+                          onClick={() => play(actualIndex)}
+                          title={`播放第 ${actualIndex + 1} 集`}
                         >
-                          {realIndex + 1}
+                          第 {actualIndex + 1} 集
                         </button>
                       );
                     })}
                   </div>
-                </>
+                </div>
               ) : (
-                <EmptyState
-                  icon="alert"
-                  title="未找到播放资源"
-                  description="该视频可能暂时无法播放，请尝试其他视频"
-                />
+                <div className="text-center py-6 text-zinc-500 text-xs">
+                  该源未解析到可用播放链接，可尝试更换其他来源
+                </div>
               )}
             </>
           )}

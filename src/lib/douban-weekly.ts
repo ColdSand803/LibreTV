@@ -15,7 +15,13 @@ const UA = 'LibreTV-Next (+https://github.com/bestZwei/LibreTV-Next)';
 const FALLBACK_BASE = 'https://60s.viki.moe';
 
 function apiBase(): string {
-  return (process.env['60S_API_BASE'] || 'https://60s.crystelf.top').replace(/\/+$/, '');
+  return (
+    process.env['60S_API_BASE'] ||
+    process.env.API_60S_BASE ||
+    process.env.SIXTY_S_API_BASE ||
+    process.env._60S_API_BASE ||
+    'https://60s.crystelf.top'
+  ).replace(/\/+$/, '');
 }
 
 /** 榜单标识：豆瓣五个周榜 + 百度热播剧榜 */

@@ -17,15 +17,20 @@ export function NetflixHero({ items, onPlay, onMoreInfo }: NetflixHeroProps) {
   const customImageProxy = useAppStore((s) => s.customImageProxy);
   const [tryProxy, setTryProxy] = useState(false);
 
-  if (!items || items.length === 0) {
+  const current = items && items.length > 0 ? items[currentIndex % items.length] : undefined;
+
+  // Hook 必须在任何 early return 之前无条件调用
+  useEffect(() => {
+    setTryProxy(false);
+  }, [current?.cover, imageProxyMode]);
+
+  if (!items || items.length === 0 || !current) {
     return (
       <div className="relative w-full h-[50vh] sm:h-[70vh] bg-gradient-to-b from-zinc-900 to-[#141414] flex items-center justify-center">
         <div className="animate-pulse text-zinc-500 text-sm">正在加载精彩影视...</div>
       </div>
     );
   }
-
-  const current = items[currentIndex % items.length];
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % items.length);
@@ -40,13 +45,9 @@ export function NetflixHero({ items, onPlay, onMoreInfo }: NetflixHeroProps) {
     return buildImageUrl(current.cover, imageProxyMode, customImageProxy) || current.cover;
   })();
 
-  useEffect(() => {
-    setTryProxy(false);
-  }, [current?.cover, imageProxyMode]);
   return (
     <div className="relative w-full h-[58vh] sm:h-[78vh] lg:h-[85vh] overflow-hidden select-none">
       {/* 巨幅背景海报 */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       {currentCover && (
         // eslint-disable-next-line @next/next/no-img-element
         <img

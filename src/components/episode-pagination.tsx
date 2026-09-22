@@ -105,7 +105,7 @@ export function EpisodePagination({
               onClick={() => onSelect(realIndex)}
               title={`第 ${realIndex + 1} 集`}
               className={cn(
-                'px-2.5 py-2 sm:py-2.5 rounded text-xs font-medium text-center truncate transition-all active:scale-95 cursor-pointer shadow-sm border',
+                'px-1.5 py-2.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium text-center whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-sm border flex items-center justify-center',
                 isActive
                   ? 'bg-[#E50914] text-white border-red-600 font-bold shadow-md'
                   : 'bg-zinc-800/80 text-zinc-200 border-zinc-700/50 hover:bg-red-600 hover:text-white hover:border-red-500'

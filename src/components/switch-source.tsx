@@ -159,7 +159,7 @@ export function SwitchSourceModal({
 
   return (
     <div
-      className="fixed inset-0 z-[65] flex items-start justify-center overflow-y-auto bg-black/80 py-10 px-4 animate-fade-in"
+      className="fixed inset-0 z-[85] flex items-start justify-center overflow-y-auto bg-black/80 py-10 px-4 animate-fade-in"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

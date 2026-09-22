@@ -210,9 +210,10 @@ function WatchContent() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
           <div>
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
+            <div className="aspect-video bg-black rounded-lg overflow-hidden relative isolate">
               {currentUrl ? (
                 <PlayerShell
+                  key={`${sourceKey}_${vodId}_${currentUrl}`}
                   url={currentUrl}
                   title={videoTitle}
                   adFilter={store.adFilter}
@@ -299,7 +300,7 @@ function WatchContent() {
                   reversed={reversed}
                   episodesPerPage={50}
                   onSelect={(idx) => goEpisode(idx)}
-                  gridColsClassName="grid grid-cols-5 lg:grid-cols-4 gap-1.5"
+                  gridColsClassName="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-4 gap-2"
                 />
               </div>
             )}

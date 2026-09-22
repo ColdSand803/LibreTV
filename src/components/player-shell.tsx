@@ -148,6 +148,7 @@ export function PlayerShell({
               break;
             default:
               if (errorCount > 3) {
+                try { art.loading.show = false; } catch { /* 忽略 */ }
                 setError('视频加载失败，可能是格式不兼容或源不可用，请尝试其他视频源');
               }
           }
@@ -336,6 +337,7 @@ export function PlayerShell({
       el?.removeEventListener('touchmove', onTouchMove);
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      try { art.loading.show = false; } catch { /* 忽略 */ }
       art.destroy();
       artRef.current = null;
     };
@@ -343,7 +345,7 @@ export function PlayerShell({
   }, [url, adFilter]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full isolate">
       <div ref={containerRef} className="w-full h-full" />
       {showPoster && !error && (
         <div

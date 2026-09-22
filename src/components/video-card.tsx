@@ -69,7 +69,7 @@ export function AggregatedCard({
   onOpen,
 }: {
   group: AggregatedGroup;
-  onOpen: (item: SearchResultItem) => void;
+  onOpen: (item: SearchResultItem, allItems?: SearchResultItem[]) => void;
 }) {
   const imageProxyMode = useAppStore((s) => s.imageProxyMode);
   const customImageProxy = useAppStore((s) => s.customImageProxy);
@@ -83,8 +83,12 @@ export function AggregatedCard({
   const adult = useMemo(() => group.items.some((i) => i.isAdult), [group.items]);
 
   const activate = () => {
-    if (multi) setExpanded((v) => !v);
-    else onOpen(group.items[0]);
+    onOpen(group.items[0], group.items);
+  };
+
+  const toggleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpanded((v) => !v);
   };
 
   return (
@@ -115,8 +119,9 @@ export function AggregatedCard({
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent" />
             {multi && (
-              <span className="absolute top-1.5 left-1.5 tag bg-black/70 text-accent font-medium">
-                {group.items.length} 源
+              <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[11px] font-semibold text-zinc-200 border border-white/10 flex items-center gap-1 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                {group.items.length} 来源
               </span>
             )}
           </div>
@@ -126,8 +131,9 @@ export function AggregatedCard({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 4v16m10-16v16M3 6a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm8 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6zm4 0a1 1 0 011-1h1a1 1 0 011 1v12a1 1 0 01-1 1h-1a1 1 0 01-1-1V6z" />
             </svg>
             {multi && (
-              <span className="absolute top-1.5 left-1.5 tag bg-black/70 text-accent font-medium">
-                {group.items.length} 源
+              <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[11px] font-semibold text-zinc-200 border border-white/10 flex items-center gap-1 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                {group.items.length} 来源
               </span>
             )}
           </div>
@@ -146,47 +152,66 @@ export function AggregatedCard({
             <p className="text-xs text-muted line-clamp-2 mb-2">{group.remarks || '暂无介绍'}</p>
           </div>
           <div className="flex items-center justify-between mt-auto pt-1.5 border-t border-line">
-            <span className="tag bg-chip text-muted truncate max-w-[80%]">
+            <span className="tag bg-chip text-muted truncate max-w-[75%]">
               {multi ? `${group.items.length} 个来源` : group.items[0].sourceName}
             </span>
             {multi && (
-              <svg
-                className={cn('w-4 h-4 text-faint transition-transform', expanded && 'rotate-180')}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden
+              <button
+                type="button"
+                className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white px-2 py-0.5 rounded-md hover:bg-zinc-800 transition-colors"
+                onClick={toggleExpand}
+                aria-label={expanded ? '收起来源列表' : '展开来源列表'}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+                <span>{expanded ? '收起' : '来源'}</span>
+                <svg
+                  className={cn('w-3.5 h-3.5 text-zinc-400 transition-transform', expanded && 'rotate-180')}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
             )}
           </div>
         </div>
       </div>
 
       {multi && expanded && (
-        <div className="border-t border-line p-2.5 animate-fade-in">
-          <p className="text-[10px] text-faint mb-1.5">选择来源播放</p>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="border-t border-line p-2.5 animate-fade-in bg-black/40">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] text-zinc-400 font-medium">快速直达来源：</p>
+            <span className="text-[10px] text-zinc-500">共 {group.items.length} 个线路</span>
+          </div>
+          {/* 规整紧凑的双列网格，限制最大高度配合滚动条，绝不撑爆卡片 */}
+          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto no-scrollbar pr-0.5">
             {group.items.map((item) => (
               <button
                 key={`${item.sourceKey}_${item.vodId}`}
+                type="button"
                 className={cn(
-                  'group inline-flex items-center gap-1.5 max-w-full rounded-lg border px-2.5 py-1.5',
-                  'text-xs transition-all cursor-pointer',
-                  'border-line bg-chip hover:border-accent hover:bg-accent/10',
+                  'group flex items-center justify-between px-2 py-1.5 rounded-lg border text-left',
+                  'text-xs transition-all cursor-pointer bg-zinc-900/90 border-zinc-800 hover:border-red-600 hover:bg-zinc-800',
                   item.isAdult && 'border-pink-500/30'
                 )}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onOpen(item);
+                  onOpen(item, group.items);
                 }}
                 aria-label={`使用 ${item.sourceName} 播放`}
+                title={`${item.sourceName} - ${item.remarks || '正片'}`}
               >
-                <span className="font-medium text-content truncate max-w-[9em]">{item.sourceName}</span>
-                <span className="text-faint truncate max-w-[7em]">{item.remarks || '暂无介绍'}</span>
+                <div className="min-w-0 flex-1 pr-1">
+                  <div className="font-medium text-zinc-200 group-hover:text-white truncate text-[11px] leading-tight">
+                    {item.sourceName}
+                  </div>
+                  <div className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5">
+                    {item.remarks || '正片'}
+                  </div>
+                </div>
                 <svg
-                  className="w-3.5 h-3.5 text-accent shrink-0 transition-transform group-hover:scale-110"
+                  className="w-3 h-3 text-red-500 shrink-0 opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all"
                   fill="currentColor"
                   viewBox="0 0 24 24"
                   aria-hidden

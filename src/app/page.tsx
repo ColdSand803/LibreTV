@@ -36,6 +36,7 @@ function HomeContent() {
   const urlQuery = searchParams.get('s') || '';
   const store = useAppStore();
   const [detailItem, setDetailItem] = useState<SearchResultItem | null>(null);
+  const [detailGroupItems, setDetailGroupItems] = useState<SearchResultItem[] | undefined>(undefined);
   const [streamedOutcomes, setStreamedOutcomes] = useState<SourceSearchOutcome[]>([]);
 
   const sourceName = (key: string) =>
@@ -198,7 +199,10 @@ function HomeContent() {
                     <AggregatedCard
                       key={group.key}
                       group={group}
-                      onOpen={(item) => setDetailItem(item)}
+                      onOpen={(item, allItems) => {
+                        setDetailItem(item);
+                        setDetailGroupItems(allItems);
+                      }}
                     />
                   ))}
                 </div>
@@ -247,7 +251,14 @@ function HomeContent() {
       </footer>
 
       {/* 沉浸式影视详情与选集弹窗 */}
-      <DetailModal item={detailItem} onClose={() => setDetailItem(null)} />
+      <DetailModal
+        item={detailItem}
+        groupItems={detailGroupItems}
+        onClose={() => {
+          setDetailItem(null);
+          setDetailGroupItems(undefined);
+        }}
+      />
     </div>
   );
 }

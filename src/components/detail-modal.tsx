@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import type { SearchResultItem, VideoDetail } from '@/lib/types';
-import { buildImageUrl, buildWatchUrl } from '@/lib/utils';
+import { buildImageUrl, buildWatchUrl, cn } from '@/lib/utils';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';
 import { addSearchHistory } from '@/lib/db';
@@ -15,18 +15,32 @@ import { EpisodePagination } from './episode-pagination';
  * Netflix 风格沉浸式详情弹窗：
  * 经典暗黑大弹窗、巨幅剧照渐变横幅、快捷「▶ 立即播放」大按钮、分集瓷砖网格与排序
  */
-export function DetailModal({ item, onClose }: { item: SearchResultItem | null; onClose: () => void }) {
+export function DetailModal({
+  item,
+  groupItems,
+  onClose,
+}: {
+  item: SearchResultItem | null;
+  groupItems?: SearchResultItem[];
+  onClose: () => void;
+}) {
   const store = useAppStore();
   const router = useRouter();
   const { toast } = useToast();
+  const [activeItem, setActiveItem] = useState<SearchResultItem | null>(item);
   const [detail, setDetail] = useState<VideoDetail | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [reversed, setReversed] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const poster = buildImageUrl(item?.pic, store.imageProxyMode, store.customImageProxy);
+  const [loading, setLoading] = useState(false);
+  const currentTarget = activeItem || item;
+  const poster = buildImageUrl(currentTarget?.pic, store.imageProxyMode, store.customImageProxy);
+
+  useEffect(() => {
+    setActiveItem(item);
+  }, [item]);
 
   useFocusTrap(Boolean(item), panelRef);
 
@@ -42,14 +56,14 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
   }, [item]);
 
   useEffect(() => {
-    if (!item) {
+    if (!currentTarget) {
       setDetail(null);
       setError('');
       return;
     }
-    const source = resolveSource(store, item.sourceKey, {
-      url: item.sourceUrl,
-      name: item.sourceName,
+    const source = resolveSource(store, currentTarget.sourceKey, {
+      url: currentTarget.sourceUrl,
+      name: currentTarget.sourceName,
     });
     if (!source) {
       setError('点播源配置不存在（可能已被删除），请在设置中重新添加');
@@ -61,7 +75,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
     const controller = new AbortController();
     abortRef.current = controller;
     api
-      .detail(item.vodId, source, controller.signal)
+      .detail(currentTarget.vodId, source, controller.signal)
       .then((d) => setDetail(d))
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -70,23 +84,23 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [item, store]);
+  }, [currentTarget, store]);
 
-  if (!item) return null;
+  if (!currentTarget) return null;
 
   const episodes = detail ? (reversed ? [...detail.episodes].reverse() : detail.episodes) : [];
   const info = detail?.videoInfo;
 
   const play = (index: number) => {
     if (!detail || !detail.episodes[index]) return;
-    addSearchHistory(item.name).catch(() => {});
+    addSearchHistory(currentTarget.name).catch(() => {});
     router.push(
       buildWatchUrl({
-        sourceKey: item.sourceKey,
-        vodId: item.vodId,
+        sourceKey: currentTarget.sourceKey,
+        vodId: currentTarget.vodId,
         index,
-        title: item.name,
-        sourceUrl: item.sourceUrl,
+        title: currentTarget.name,
+        sourceUrl: currentTarget.sourceUrl,
       })
     );
   };
@@ -123,7 +137,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
         className="bg-[#181818] border border-zinc-800 text-white rounded-xl w-full max-w-3xl shadow-2xl overflow-hidden animate-slide-up outline-none my-auto max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
-        aria-label={`${item.name} 详情`}
+        aria-label={`${currentTarget.name} 详情`}
       >
         {/* 顶部横幅区（带背景图与快捷播放） */}
         <div className="relative h-44 sm:h-64 bg-zinc-900 shrink-0 overflow-hidden">
@@ -131,7 +145,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={poster}
-              alt={item.name}
+              alt={currentTarget.name}
               className="absolute inset-0 w-full h-full object-cover filter brightness-75 scale-105"
             />
           )}
@@ -150,10 +164,10 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
           <div className="absolute bottom-3 left-4 right-4 sm:bottom-4 sm:left-6 sm:right-6 z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
               <span className="text-[11px] font-bold text-red-500 uppercase tracking-widest bg-red-950/80 border border-red-800/40 px-2 py-0.5 rounded">
-                {item.sourceName}
+                {currentTarget.sourceName}
               </span>
               <h2 className="text-lg sm:text-3xl font-black text-white mt-0.5 sm:mt-1 drop-shadow-md truncate">
-                {item.name}
+                {currentTarget.name}
               </h2>
             </div>
 
@@ -172,10 +186,46 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
         </div>
 
         {/* 主体滚动区 */}
+        {/* 主体滚动区 */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 sm:space-y-6">
+          {/* 多线路切换胶囊列表（当聚合多源时展示） */}
+          {groupItems && groupItems.length > 1 && (
+            <div className="bg-zinc-900/80 p-3 rounded-xl border border-zinc-800/80">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                  </svg>
+                  选择播放线路
+                </span>
+                <span className="text-[11px] text-zinc-500">共 {groupItems.length} 个可用来源</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar py-0.5">
+                {groupItems.map((gi) => {
+                  const isCurrent = gi.sourceKey === currentTarget.sourceKey && String(gi.vodId) === String(currentTarget.vodId);
+                  return (
+                    <button
+                      key={`${gi.sourceKey}_${gi.vodId}`}
+                      type="button"
+                      onClick={() => !isCurrent && setActiveItem(gi)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer truncate max-w-[150px] border',
+                        isCurrent
+                          ? 'bg-[#E50914] text-white border-red-600 font-bold shadow-sm'
+                          : 'bg-zinc-800/80 text-zinc-300 border-zinc-700/60 hover:bg-zinc-700 hover:text-white'
+                      )}
+                      title={`${gi.sourceName} (${gi.remarks || '正片'})`}
+                    >
+                      {gi.sourceName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {loading && <LoadingState label="正在从采集站解析剧集与线路..." />}
           {!loading && error && <ErrorState message={error} />}
-
           {!loading && !error && detail && (
             <>
               {/* 演职员与元数据 */}

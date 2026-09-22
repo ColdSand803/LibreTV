@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
@@ -20,6 +20,7 @@ import {
   db,
 } from '@/lib/db';
 import { cn } from '@/lib/utils';
+import { EpisodePagination } from '@/components/episode-pagination';
 
 /**
  * 播放页（唯一入口，替代旧版 watch.html → player.html 跳转链）。
@@ -163,7 +164,6 @@ function WatchContent() {
     return () => document.removeEventListener('keydown', handler);
   }, [currentIndex, episodes.length, goEpisode]);
 
-  const orderedEpisodes = reversed ? [...episodes].map((_, i) => episodes.length - 1 - i) : episodes.map((_, i) => i);
 
   if (!verified) {
     return (
@@ -292,15 +292,15 @@ function WatchContent() {
                 <EmptyState variant="plain" title={detailQuery.isError ? '获取剧集失败' : '暂无剧集信息'} />
               )
             ) : (
-              <div className="grid grid-cols-5 lg:grid-cols-4 gap-1.5 max-h-[65vh] overflow-y-auto scrollbar-thin pr-1">
-                {orderedEpisodes.map((realIndex) => (
-                  <EpisodeButton
-                    key={realIndex}
-                    index={realIndex}
-                    active={realIndex === currentIndex}
-                    onClick={() => goEpisode(realIndex)}
-                  />
-                ))}
+              <div className="max-h-[65vh] overflow-y-auto no-scrollbar pr-1">
+                <EpisodePagination
+                  totalEpisodes={episodes.length}
+                  currentIndex={currentIndex}
+                  reversed={reversed}
+                  episodesPerPage={50}
+                  onSelect={(idx) => goEpisode(idx)}
+                  gridColsClassName="grid grid-cols-5 lg:grid-cols-4 gap-1.5"
+                />
               </div>
             )}
             <p className="hidden md:block text-[10px] text-faint mt-3 leading-relaxed">
@@ -323,24 +323,6 @@ function WatchContent() {
   );
 }
 
-/** 集数按钮：激活时自动滚动进可视区（长剧列表） */
-function EpisodeButton({ index, active, onClick }: { index: number; active: boolean; onClick: () => void }) {
-  const ref = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (active) ref.current?.scrollIntoView({ block: 'nearest' });
-  }, [active]);
-
-  return (
-    <button
-      ref={ref}
-      className={cn('btn btn-sm !px-1', active ? 'episode-active' : 'btn-ghost')}
-      onClick={onClick}
-    >
-      {index + 1}
-    </button>
-  );
-}
 
 function BackButton() {
   const router = useRouter();

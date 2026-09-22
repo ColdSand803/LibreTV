@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Artplayer from 'artplayer';
+import artplayerPluginDanmuku from 'artplayer-plugin-danmuku';
 import Hls, { type HlsConfig } from 'hls.js';
 import { filterAdsFromM3u8 } from '@/lib/m3u8';
 import { formatTime } from '@/lib/utils';
@@ -174,7 +175,21 @@ export function PlayerShell({
       playsInline: true,
       airplay: true,
       hotkey: false,
-      theme: '#2563eb',
+      theme: '#E50914',
+      plugins: [
+        artplayerPluginDanmuku({
+          danmuku: [],
+          speed: 5,
+          opacity: 0.9,
+          fontSize: 22,
+          color: '#FFFFFF',
+          mode: 0,
+          margin: [10, '20%'],
+          antiOverlap: true,
+          lockTime: 5,
+          theme: 'dark',
+        }),
+      ],
       lang: navigator.language.toLowerCase().startsWith('zh') ? 'zh-cn' : 'en',
       moreVideoAttr: { crossOrigin: 'anonymous', playsInline: true },
       customType: {

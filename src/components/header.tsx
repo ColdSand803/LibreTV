@@ -104,6 +104,9 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
             <NavLink href="/?cat=tv" active={activeCategory === 'tv'}>
               剧集
             </NavLink>
+            <NavLink href="/?cat=shortdrama" active={activeCategory === 'shortdrama'}>
+              短剧
+            </NavLink>
             <NavLink href="/?cat=movie" active={activeCategory === 'movie'}>
               电影
             </NavLink>
@@ -234,6 +237,9 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
           </MobileCategoryLink>
           <MobileCategoryLink href="/?cat=tv" active={activeCategory === 'tv'}>
             剧集
+          </MobileCategoryLink>
+          <MobileCategoryLink href="/?cat=shortdrama" active={activeCategory === 'shortdrama'}>
+            短剧
           </MobileCategoryLink>
           <MobileCategoryLink href="/?cat=movie" active={activeCategory === 'movie'}>
             电影

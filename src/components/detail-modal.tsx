@@ -10,7 +10,7 @@ import { useToast } from './toast';
 import { addSearchHistory } from '@/lib/db';
 import { ErrorState, LoadingState } from './states';
 import { useFocusTrap } from './use-focus-trap';
-
+import { EpisodePagination } from './episode-pagination';
 /**
  * Netflix 风格沉浸式详情弹窗：
  * 经典暗黑大弹窗、巨幅剧照渐变横幅、快捷「▶ 立即播放」大按钮、分集瓷砖网格与排序
@@ -224,22 +224,13 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
                     </div>
                   </div>
 
-                  {/* 分集网格按钮 */}
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5 sm:gap-2">
-                    {episodes.map((ep, i) => {
-                      const actualIndex = reversed ? episodes.length - 1 - i : i;
-                      return (
-                        <button
-                          key={ep}
-                          className="px-2 sm:px-3 py-2 sm:py-2.5 rounded bg-zinc-800/80 hover:bg-red-600 hover:text-white border border-zinc-700/50 text-zinc-200 text-xs font-medium text-center truncate transition-all active:scale-95 cursor-pointer shadow-sm"
-                          onClick={() => play(actualIndex)}
-                          title={`播放第 ${actualIndex + 1} 集`}
-                        >
-                          第 {actualIndex + 1} 集
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <EpisodePagination
+                    totalEpisodes={episodes.length}
+                    currentIndex={0}
+                    reversed={reversed}
+                    episodesPerPage={30}
+                    onSelect={(index) => play(index)}
+                  />
                 </div>
               ) : (
                 <div className="text-center py-6 text-zinc-500 text-xs">

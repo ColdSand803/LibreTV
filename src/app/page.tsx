@@ -15,6 +15,7 @@ import { validateSourceUrl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/components/auth';
 import { EmptyState } from '@/components/states';
+import { SearchFilter, filterAggregatedGroups, type SearchFilterState } from '@/components/search-filter';
 
 /** 搜索结果分批渲染批次 */
 const RESULT_PAGE_SIZE = 60;
@@ -108,9 +109,18 @@ function HomeContent() {
       .map((o) => ({ sourceKey: o.sourceKey, error: o.error || '请求失败', timedOut: o.timedOut }));
 
   const groups = useMemo(() => aggregateResults(list), [list]);
+  const [filters, setFilters] = useState<SearchFilterState>({
+    type: 'all',
+    year: 'all',
+    multiOnly: false,
+  });
+  const filteredGroups = useMemo(
+    () => filterAggregatedGroups(groups, filters),
+    [groups, filters]
+  );
   const [visibleCount, setVisibleCount] = useState(RESULT_PAGE_SIZE);
-  const visibleGroups = useMemo(() => groups.slice(0, visibleCount), [groups, visibleCount]);
-  useEffect(() => setVisibleCount(RESULT_PAGE_SIZE), [groups]);
+  const visibleGroups = useMemo(() => filteredGroups.slice(0, visibleCount), [filteredGroups, visibleCount]);
+  useEffect(() => setVisibleCount(RESULT_PAGE_SIZE), [groups, filters]);
 
   return (
     <div className="min-h-screen bg-[#141414] text-white flex flex-col selection:bg-red-600 selection:text-white">
@@ -133,7 +143,7 @@ function HomeContent() {
                   </h1>
                   {groups.length > 0 && (
                     <span className="text-xs bg-zinc-800 text-zinc-300 px-2.5 py-0.5 rounded-full font-medium">
-                      共 {groups.length} 部影片
+                      共 {filteredGroups.length} 部
                     </span>
                   )}
                 </div>
@@ -169,6 +179,9 @@ function HomeContent() {
                 {disabledSources.length} 个源处于暂停保护状态：{disabledSources.map((k) => sourceName(k)).join('、')}
               </div>
             )}
+            {groups.length > 0 && (
+              <SearchFilter groups={groups} filters={filters} onChange={setFilters} />
+            )}
 
             {/* 结果网格 */}
             {selectedSources.length === 0 ? (
@@ -190,13 +203,13 @@ function HomeContent() {
                   ))}
                 </div>
 
-                {groups.length > visibleCount && (
+                {filteredGroups.length > visibleCount && (
                   <div className="flex justify-center mt-10">
                     <button
                       className="px-6 py-2.5 rounded-md bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-sm transition-colors cursor-pointer shadow-lg"
                       onClick={() => setVisibleCount((v) => v + RESULT_PAGE_SIZE)}
                     >
-                      加载更多影片（还有 {groups.length - visibleCount} 部）
+                      加载更多影片（还有 {filteredGroups.length - visibleCount} 部）
                     </button>
                   </div>
                 )}

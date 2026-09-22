@@ -58,6 +58,11 @@ export function NetflixHome({ onPick }: NetflixHomeProps) {
     queryKey: ['bangumi', 'calendar'],
     queryFn: ({ signal }) => api.bangumiCalendar(signal),
   });
+  // 8. 热门微短剧
+  const shortDramaQuery = useQuery({
+    queryKey: ['douban', 'tv', '短剧'],
+    queryFn: ({ signal }) => api.douban('tv', '短剧', 0, 20, signal),
+  });
 
   // 转换豆瓣数据为 Netflix 卡片格式
   const mapDoubanItems = (items?: DoubanItem[]): NetflixRowCardItem[] => {
@@ -171,6 +176,16 @@ export function NetflixHome({ onPick }: NetflixHomeProps) {
             title="当季新番放送"
             subtitle="Bangumi 日本动画每日更新日历"
             items={animeItems}
+            onPick={onPick}
+          />
+        )}
+
+        {/* 微短剧分类视图 / 默认视图 */}
+        {(!cat || cat === 'shortdrama') && (
+          <NetflixRow
+            title="热门微短剧专区"
+            subtitle="快节奏、高能反转的爽感短剧"
+            items={mapDoubanItems(shortDramaQuery.data?.items)}
             onPick={onPick}
           />
         )}

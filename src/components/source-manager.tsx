@@ -223,7 +223,7 @@ function VodSourcesPanel() {
   const [filter, setFilter] = useState<VodFilter>('all');
   const { tests, runTest } = useSourceTests();
   const { progress, probe, cancel, isProbing } = useSourceProbe();
-
+  const [failedKeys, setFailedKeys] = useState<string[]>([]);
   const envKeys = useMemo(() => new Set(store.envSources.map((s) => s.key)), [store.envSources]);
   const all = useMemo(() => [...store.envSources, ...store.customAPIs], [store.envSources, store.customAPIs]);
 
@@ -257,6 +257,20 @@ function VodSourcesPanel() {
     if (skipped > 0) toast(`已启用 ${eligible.length} 个；${skipped} 个成人源因过滤开启被跳过`, 'info');
   };
 
+  const disableFailed = (keysToDisable = failedKeys) => {
+    if (keysToDisable.length === 0) return;
+    const targetSet = new Set(keysToDisable);
+    const prevSelected = store.selectedKeys;
+    const nextSelected = prevSelected.filter((k) => !targetSet.has(k));
+    const disabledCount = prevSelected.length - nextSelected.length;
+    if (disabledCount > 0) {
+      store.setSelectedKeys(nextSelected);
+      toast(`已停用 ${disabledCount} 个失败源`, 'success');
+    } else {
+      toast('失败源已处于未启用状态', 'info');
+    }
+  };
+
   const runAll = async () => {
     if (isProbing) {
       cancel();
@@ -264,7 +278,18 @@ function VodSourcesPanel() {
     }
     const result = await probe(filtered.map((s) => ({ key: s.key, url: s.url })));
     if (!result) return; // 被取消则无汇总
-    toast(`测活完成：${result.ok}/${result.total} 个可用`, result.ok === result.total ? 'success' : 'info');
+    setFailedKeys(result.failedKeys);
+    const failedCount = result.failedKeys.length;
+    if (failedCount > 0) {
+      toast(`测活完成：${result.ok}/${result.total} 个可用，${failedCount} 个失败`, 'warning', {
+        action: {
+          label: '停用失败源',
+          onClick: () => disableFailed(result.failedKeys),
+        },
+      });
+    } else {
+      toast(`测活完成：全部 ${result.total} 个源均可用`, 'success');
+    }
   };
 
   /** 一键恢复被自动停用的源（仅「已停用」筛选下提供） */
@@ -341,7 +366,15 @@ function VodSourcesPanel() {
               >
                 {isProbing ? '取消测活' : '批量测活'}
               </button>
-              {/* 查看「已停用」时提供一键恢复，省去逐个点击 */}
+              {failedKeys.length > 0 && (
+                <button
+                  className="btn-ghost btn-sm text-warning hover:bg-warning/10"
+                  onClick={() => disableFailed()}
+                  title="一键取消勾选所有测活失败的源"
+                >
+                  停用失败 ({failedKeys.filter((k) => store.selectedKeys.includes(k)).length})
+                </button>
+              )}
               {filter === 'disabled' && (
                 <button className="btn-ghost btn-sm" onClick={restoreAll} disabled={filtered.length === 0}>
                   全部恢复

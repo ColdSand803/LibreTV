@@ -85,11 +85,11 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
               </span>
             </Link>
           ) : (
-            <div className="sm:hidden flex items-center">
+            <div className="sm:hidden flex items-center mr-1">
               <button
                 type="button"
                 onClick={() => setSearchExpanded(false)}
-                className="text-zinc-400 hover:text-white text-xs px-2.5 py-1 rounded bg-zinc-800"
+                className="text-zinc-300 hover:text-white text-xs px-2.5 py-1.5 rounded-full bg-zinc-800/90 active:bg-zinc-700 flex items-center gap-1 font-medium transition-colors shrink-0"
               >
                 ‹ 返回
               </button>
@@ -121,7 +121,7 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
             </NavLink>
           </nav>
 
-          <div className="flex-1" />
+          <div className={cn('flex-1', searchExpanded && 'hidden sm:block')} />
 
           {/* 右侧工具组：Netflix 展开式搜索框、观看历史、头像设置 */}
           <div className={cn('flex items-center gap-2 sm:gap-3', searchExpanded && 'flex-1 sm:flex-initial')}>
@@ -131,7 +131,7 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
                 className={cn(
                   'relative flex items-center transition-all duration-300',
                   searchExpanded
-                    ? 'flex-1 sm:w-64 bg-black/90 border border-white/40 rounded-full px-3 py-1'
+                    ? 'flex-1 sm:w-72 bg-black/90 border border-white/40 rounded-full px-3.5 py-1.5 sm:py-1'
                     : 'w-8 h-8 sm:w-9 sm:h-9 justify-center'
                 )}
               >
@@ -148,7 +148,7 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
                 <input
                   ref={searchInputRef}
                   className={cn(
-                    'bg-transparent text-white text-xs sm:text-sm focus:outline-none ml-2 transition-all',
+                    'bg-transparent text-white text-sm focus:outline-none ml-2 transition-all min-w-0',
                     searchExpanded ? 'w-full opacity-100' : 'w-0 opacity-0 pointer-events-none'
                   )}
                   placeholder="搜索片名、演员..."
@@ -184,7 +184,7 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
 
                 {/* 搜索历史下拉 */}
                 {searchHistory.visible && searchExpanded && (
-                  <div className="absolute top-full mt-2 left-0 right-0 sm:left-auto sm:right-0 sm:w-72 z-50">
+                  <div className="absolute top-full mt-2.5 left-0 right-0 sm:left-auto sm:right-0 sm:w-80 z-50">
                     <SearchHistoryDropdown
                       id="header-search-history"
                       matches={searchHistory.matches}

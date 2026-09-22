@@ -140,14 +140,14 @@ export function SearchHistoryDropdown({
         'w-full overflow-hidden text-left rounded-xl border border-zinc-700/80 bg-[#1a1a1a]/95 backdrop-blur-xl shadow-2xl animate-fade-in'
       )}
     >
-      <div className="flex items-center justify-between px-3.5 py-2 border-b border-zinc-800">
-        <span className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
-          <Icon name="clock" className="w-3.5 h-3.5 text-zinc-400" />
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/80">
+        <span className="flex items-center gap-2 text-xs sm:text-sm text-zinc-300 font-medium shrink-0 whitespace-nowrap">
+          <Icon name="clock" className="w-4 h-4 text-zinc-400 shrink-0" />
           最近搜索
         </span>
         <button
           type="button"
-          className="px-2 py-0.5 rounded text-xs text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="px-2.5 py-1 rounded text-xs text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
           onMouseDown={(e) => {
             e.preventDefault();
             onClearAll();
@@ -170,19 +170,19 @@ export function SearchHistoryDropdown({
             role="option"
             aria-selected={i === activeIndex}
             className={cn(
-              'flex items-center hover:bg-white/10 transition-colors group/item px-2 py-0.5',
+              'flex items-center hover:bg-white/10 transition-colors group/item px-2.5 py-1',
               i === activeIndex && 'bg-white/10'
             )}
           >
             <button
               type="button"
-              className="flex-1 min-w-0 flex items-center gap-2.5 px-2 py-2 text-left text-xs sm:text-sm text-zinc-200 group-hover/item:text-white truncate cursor-pointer"
+              className="flex-1 min-w-0 flex items-center gap-2.5 px-2 py-2 text-left text-sm text-zinc-200 group-hover/item:text-white truncate cursor-pointer"
               onMouseDown={(e) => {
                 e.preventDefault();
                 onPick(h.text);
               }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-zinc-500 shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-zinc-500 shrink-0">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
@@ -190,7 +190,7 @@ export function SearchHistoryDropdown({
             </button>
             <button
               type="button"
-              className="shrink-0 p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-white/10 transition-colors cursor-pointer"
+              className="shrink-0 p-2 rounded-md text-zinc-500 hover:text-red-400 hover:bg-white/10 transition-colors cursor-pointer"
               aria-label={`删除搜索记录 ${h.text}`}
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -198,7 +198,7 @@ export function SearchHistoryDropdown({
                 onRemove(h.text);
               }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>

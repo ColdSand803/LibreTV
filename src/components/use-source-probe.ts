@@ -51,6 +51,7 @@ export function useSourceProbe() {
     setProgress({ done: 0, total, ok: 0, startedAt });
 
     const outcomes: SourceSearchOutcome[] = [];
+    const failedKeys: string[] = [];
     let done = 0;
     let okCount = 0;
     let cursor = 0;
@@ -84,7 +85,11 @@ export function useSourceProbe() {
         if (runIdRef.current !== runId) return;
         outcomes.push(outcome);
         done++;
-        if (outcome.ok) okCount++;
+        if (outcome.ok) {
+          okCount++;
+        } else {
+          failedKeys.push(source.key);
+        }
         flush();
       }
     };
@@ -94,8 +99,7 @@ export function useSourceProbe() {
     useAppStore.getState().recordSourceHealth(outcomes);
     setProgress(null);
     // 返回汇总供调用方提示；被取消时返回 undefined
-    return { total, ok: okCount };
+    return { total, ok: okCount, failedKeys };
   }, []);
-
   return { progress, probe, cancel, isProbing: progress !== null };
 }

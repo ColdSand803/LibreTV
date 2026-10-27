@@ -16,17 +16,14 @@ interface SearchBody {
 /** 搜索结果短缓存：同一关键词 + 同一组源在 TTL 内直接返回（播放页返回搜索页等场景） */
 const SEARCH_CACHE_TTL = 60 * 1000;
 
-/** 缓存键：wd + 成人过滤 + 排序后的源地址集合 */
+/** 缓存键：wd + 成人过滤 + 排序后的源地址集合（直接用完整字符串，避免哈希碰撞串缓存） */
 function searchCacheKey(wd: string, sources: SourceConfig[], filterAdult: boolean): string {
   const urls = sources.map((s) => s.url.replace(/\/+$/, '')).sort().join('|');
-  let h = 5381;
-  const str = `${wd}\n${filterAdult ? 1 : 0}\n${urls}`;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-  return `search:${h.toString(36)}`;
+  return `search:${wd}\n${filterAdult ? 1 : 0}\n${urls}`;
 }
 
 /**
- * 每个源最多抓取的页数（参考 LunaTV 的 SearchDownstreamMaxPage）。
+ * 每个源最多抓取的页数。
  * 第一页响应会带回 pagecount（源站真实总页数），实际抓取页数 = min(pagecount, 该值)。
  * 默认 5；页与页之间并行请求，单页失败只丢弃该页。
  */
@@ -252,7 +249,9 @@ export async function POST(req: Request) {
         sources.map(async (source, i) => {
           const outcome = await searchSource(source, wd);
           outcomes[i] = outcome;
-          send({ type: 'source', ...outcome });
+          // 中间结果与最终结果共用去重和过滤规则，避免无关/成人条目短暂出现在页面上。
+          const { list } = aggregateOutcomes([outcome], wd, filterAdult);
+          send({ type: 'source', ...outcome, list });
         })
       );
 

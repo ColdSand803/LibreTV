@@ -11,7 +11,7 @@ import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
 import { api } from '@/lib/client-api';
 import type { SearchResultItem, SourceSearchOutcome } from '@/lib/types';
-import { validateSourceUrl } from '@/lib/utils';
+ import { formatDisableTtl, validateSourceUrl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/components/auth';
 import { EmptyState } from '@/components/states';
@@ -61,17 +61,29 @@ function HomeContent() {
     () => store.selectedKeys.filter((key) => isSourceDisabled(store, key)),
     [store]
   );
+  const offSubscriptionSources = useMemo(
+    () =>
+      store.selectedKeys.filter(
+        (key) => !isSourceDisabled(store, key) && isInDisabledSubscription(store, key)
+      ),
+    [store]
+  );
 
   const searchQuery = useQuery({
     queryKey: ['search', urlQuery, selectedSources.map((s) => s.key).sort().join(','), store.yellowFilter],
     queryFn: ({ signal }) => {
       setStreamedOutcomes([]);
-      return api.search(urlQuery, selectedSources, store.yellowFilter, {
+      return api.search(urlQuery.slice(0, 100), selectedSources, store.yellowFilter, {
         signal,
         onSource: (outcome: SourceSearchOutcome) => {
           setStreamedOutcomes((prev) => [...prev, outcome]);
-          if (!outcome.ok && !outcome.timedOut && outcome.error) {
-            toast(`${outcome.sourceKey}: ${outcome.error}`, 'error');
+          for (const ev of useAppStore.getState().recordSourceHealth([outcome])) {
+            toast(
+              ev.permanent
+                ? `「${sourceName(ev.key)}」多次失败，已停止参与搜索，可在设置中恢复`
+                : `「${sourceName(ev.key)}」连续超时/失败，已停用 ${formatDisableTtl(ev.ttlMs ?? 0)}`,
+              'warning'
+            );
           }
         },
       });
@@ -180,6 +192,11 @@ function HomeContent() {
                 {disabledSources.length} 个源处于暂停保护状态：{disabledSources.map((k) => sourceName(k)).join('、')}
               </div>
             )}
+            {offSubscriptionSources.length > 0 && (
+              <div className="mb-4 text-xs text-zinc-400 bg-zinc-900/80 border border-zinc-800 rounded-lg px-3 py-2">
+                {offSubscriptionSources.length} 个源所属订阅已关闭，本次搜索已跳过：{offSubscriptionSources.map((k) => sourceName(k)).join('、')}
+              </div>
+            )}
             {groups.length > 0 && (
               <SearchFilter groups={groups} filters={filters} onChange={setFilters} />
             )}
@@ -203,6 +220,7 @@ function HomeContent() {
                         setDetailItem(item);
                         setDetailGroupItems(allItems);
                       }}
+                      sources={selectedSources}
                     />
                   ))}
                 </div>

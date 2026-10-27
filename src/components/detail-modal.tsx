@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import type { SearchResultItem, VideoDetail } from '@/lib/types';
 import { buildImageUrl, buildWatchUrl, cn } from '@/lib/utils';
+import { formatRemarks } from '@/lib/remarks';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';
 import { addSearchHistory } from '@/lib/db';
+import { copyToClipboard } from '@/lib/clipboard';
 import { ErrorState, LoadingState } from './states';
 import { useFocusTrap } from './use-focus-trap';
 import { EpisodePagination } from './episode-pagination';
@@ -107,22 +109,21 @@ export function DetailModal({
 
   const copyLinks = async () => {
     if (!detail) return;
-    try {
-      await navigator.clipboard.writeText(detail.episodes.join('\n'));
-      toast('播放链接已复制', 'success');
-    } catch {
-      toast('复制失败，请检查浏览器权限', 'error');
-    }
+    const ok = await copyToClipboard(detail.episodes.join('\n'));
+    if (ok) toast('播放链接已复制', 'success');
+    else toast('复制失败，请检查浏览器权限', 'error');
   };
 
+  const remarks = formatRemarks(info?.remarks);
   const metaRows = [
     info?.typeName && ['类型', info.typeName],
     info?.year && ['年份', info.year],
     info?.area && ['地区', info.area],
     info?.director && ['导演', info.director],
     info?.actor && ['主演', info.actor],
-    info?.remarks && ['状态', info.remarks],
+    remarks && ['状态', remarks],
   ].filter(Boolean) as [string, string][];
+
 
   return (
     <div

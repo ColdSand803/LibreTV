@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Drawer } from './drawer';
 import { ConfirmDialog } from './confirm-dialog';
+import { Dropdown, type DropdownOption } from './dropdown';
 import { Icon, type IconName } from './icon';
 import { LiveSourceManager } from './live-source-manager';
 import {
@@ -16,6 +17,7 @@ import {
   useSourceTests,
   type TestState,
 } from './settings-shared';
+import { loadCacheSettings, saveCacheSettings, getCacheSummary, clearVideoCache, type CacheSummary } from '@/lib/video-cache';
 import { EmptyState, Spinner } from './states';
 import { useSourceProbe } from './use-source-probe';
 import { allLiveSources, isSourceDisabled, keyBelongsToSubscription, resolveSource, subKeyPrefix, useAppStore } from '@/lib/store';
@@ -23,9 +25,11 @@ import type { SourceConfig } from '@/lib/types';
 import { useToast } from './toast';
 import { formatRelativeTime, hostnameOf, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
+import { PERSIST_KEY } from '@/lib/persist-storage';
+import { copyToClipboard } from '@/lib/clipboard';
 import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
-import { syncSourceSubscription } from '@/lib/subscription-sync';
+import { AUTO_REFRESH_MAX_FAIL_STREAK, syncSourceSubscription } from '@/lib/subscription-sync';
 import { describeParseStats } from '@/lib/tvbox-parser';
 
 /**
@@ -588,13 +592,16 @@ function VodSourceRow({
 
 function PlaybackPanel() {
   const store = useAppStore();
+  const { toast } = useToast();
+  const [clearMarksOpen, setClearMarksOpen] = useState(false);
+  const markCount = Object.keys(store.skipMarks).length;
   return (
     <section>
       <SectionTitle title="播放与过滤" />
       <div className="space-y-3">
         <ToggleRow
-          label="广告过滤"
-          description="过滤 m3u8 中的广告分片"
+          label="广告切片过滤"
+          description="剔除播放列表中的广告分片段落（按分片 URL 特征、片头插入与长片间超短中插识别，不动 DISCONTINUITY 时间轴）"
           checked={store.adFilter}
           onChange={(v) => store.updateSettings({ adFilter: v })}
         />
@@ -604,29 +611,122 @@ function PlaybackPanel() {
           checked={store.autoplayNext}
           onChange={(v) => store.updateSettings({ autoplayNext: v })}
         />
+        <ToggleRow
+          label="自动跳过片段"
+          description="命中片头/中段标记时跳到片段末尾，命中片尾标记时结束本集（是否连播下一集由「自动连播」决定）；关闭后三类都只显示跳过按钮（标记在播放页「跳过标记」中设置）"
+          checked={store.autoSkipSegments}
+          onChange={(v) => store.updateSettings({ autoSkipSegments: v })}
+        />
       </div>
+
+      {markCount > 0 && (
+        <div className="flex items-center justify-between gap-3 pt-3 mt-3 border-t border-line">
+          <div className="min-w-0">
+            <div className="text-sm text-content">跳过片段标记</div>
+            <div className="text-xs text-faint">已记录 {markCount} 部；在播放页「跳过标记」中设置，可逐剧关闭</div>
+          </div>
+          <button className="btn-ghost btn-sm shrink-0" onClick={() => setClearMarksOpen(true)}>
+            清除全部
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={clearMarksOpen}
+        danger
+        title="清除全部跳过片段？"
+        message={`将删除已记录的 ${markCount} 部剧的跳过片段，之后播放不再自动跳过；可重新在播放页标记。`}
+        confirmLabel="清除全部"
+        onCancel={() => setClearMarksOpen(false)}
+        onConfirm={() => {
+          store.clearAllSkipMarks();
+          setClearMarksOpen(false);
+          toast('已清除全部跳过片段标记', 'success');
+        }}
+      />
+
+      <VideoCachePanel />
     </section>
+  );
+}
+
+/** 片段缓存：开启/关闭 + 用量展示 + 清理（数据在浏览器本地，独立于配置导出） */
+function VideoCachePanel() {
+  const [enabled, setEnabled] = useState(() => loadCacheSettings().enabled);
+  const [summary, setSummary] = useState<CacheSummary>({ segments: 0, bytes: 0, episodes: 0 });
+  const [clearing, setClearing] = useState(false);
+
+  const refresh = useCallback(() => {
+    void getCacheSummary().then(setSummary);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+    if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  };
+
+  return (
+    <div className="space-y-3 pt-3 mt-3 border-t border-line">
+      <ToggleRow
+        label="片段本地缓存"
+        description="暂停或观看时把后续分片缓存到浏览器本地，二次播放与断网卡顿时直接命中（存储于本机，不计入配置导出）"
+        checked={enabled}
+        onChange={(v) => {
+          const next = saveCacheSettings({ enabled: v });
+          setEnabled(next.enabled);
+        }}
+      />
+      <div className="flex items-center justify-between text-xs text-faint">
+        <span>
+          已缓存 {summary.segments} 个分片 · {formatBytes(summary.bytes)} · {summary.episodes} 集
+        </span>
+        <button
+          type="button"
+          className="px-2 py-1 rounded bg-chip text-content hover:bg-hover transition-colors disabled:opacity-50"
+          disabled={clearing || summary.segments === 0}
+          onClick={async () => {
+            setClearing(true);
+            await clearVideoCache();
+            refresh();
+            setClearing(false);
+          }}
+        >
+          清理缓存
+        </button>
+      </div>
+    </div>
   );
 }
 
 function ImagePanel() {
   const store = useAppStore();
+  const mode = store.imageProxyMode;
+  const description: Record<'direct' | 'proxy' | 'custom', string> = {
+    direct: '原站直连；豆瓣封面自动换公共镜像，仍失败回退内置代理。最省服务器流量',
+    proxy: '封面优先经本站服务器转发并伪装来源，失败自动回退公共镜像/直连。最稳定，消耗服务器流量',
+    custom: '使用你填写的模板转发封面图',
+  };
   return (
     <section>
       <SectionTitle title="封面图加载" />
       <div className="space-y-2">
         <SelectRow
           label="加载方式"
-          value={store.imageProxyMode}
+          value={mode}
+          description={description[mode]}
           onChange={(v) => store.updateSettings({ imageProxyMode: v as 'direct' | 'proxy' | 'custom' })}
           options={[
-            { value: 'direct', label: '直连' },
-            { value: 'proxy', label: '内置代理（默认）' },
-            { value: 'custom', label: '自定义代理' },
+            { value: 'direct', label: '直连优先', hint: '最省服务器流量' },
+            { value: 'proxy', label: '内置代理', hint: '最稳定' },
+            { value: 'custom', label: '自定义', hint: '自建转发模板' },
           ]}
         />
-        {store.imageProxyMode === 'custom' && <CustomProxyInput />}
-        <p className="text-xs text-faint">豆瓣封面在某些网络下直连会被拒绝，可切换为内置代理。</p>
+        {mode === 'custom' && <CustomProxyInput />}
       </div>
     </section>
   );
@@ -684,9 +784,9 @@ function HomePanel() {
           value={store.recommendSource}
           onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' | 'hot-list' })}
           options={[
-            { value: 'douban', label: '豆瓣（电影/剧集）' },
-            { value: 'bangumi', label: 'Bangumi 新番放送' },
-            { value: 'hot-list', label: '影视榜单（豆瓣周榜/百度热播）' },
+            { value: 'douban', label: '豆瓣', hint: '热门电影与剧集' },
+            { value: 'bangumi', label: 'Bangumi', hint: '每日新番放送（免 key）' },
+            { value: 'hot-list', label: '影视榜单', hint: '豆瓣周榜 / 百度热播' },
           ]}
         />
       </div>
@@ -697,9 +797,23 @@ function HomePanel() {
 // —— 数据面板 ——
 
 /**
+ * 自动刷新周期选项。值统一用字符串（Dropdown 的 value 是 string），
+ * `off` = 纯手动，保持这个功能对存量用户的默认无感。
+ */
+const REFRESH_OPTIONS: DropdownOption[] = [
+  { value: 'off', label: '手动', hint: '只在点 ⟳ 时同步' },
+  { value: '1', label: '每天', hint: '打开站点时检查' },
+  { value: '3', label: '每 3 天' },
+  { value: '7', label: '每 7 天' },
+  { value: '14', label: '每 14 天' },
+  { value: '30', label: '每 30 天' },
+];
+
+/**
  * 数据源订阅 / 分享：
- * - 订阅：填入远程订阅地址（LibreTV-SourceList JSON 或 TVBOX 配置 JSON，由服务端自动识别），
- *   一次拉取点播源与直播源，可随时重新同步；
+ * - 订阅：填入远程订阅地址（LibreTV-SourceList JSON、TVBOX 配置 JSON 或接口目录 JSON，
+ *   由服务端自动识别），一次拉取点播源与直播源，可随时重新同步；
+ * - 自动刷新：每个订阅可单独设周期（默认手动），到期才在打开站点时静默同步；
  * - 分享：把当前点播源 + 直播源导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
  */
 function SourceSubscriptions() {
@@ -716,7 +830,12 @@ function SourceSubscriptions() {
       const { vodCount, liveCount, stats } = await syncSourceSubscription(url);
       // 如实说明跳过/截断情况，避免用户疑惑「配置里站点很多，为何只导入了个位数」
       const detail = describeParseStats(stats, { includeSamples: false });
-      const formatLabel = stats?.format === 'tvbox' ? '（TVBOX 配置）' : '';
+      const formatLabel =
+        stats?.format === 'tvbox'
+          ? '（TVBOX 配置）'
+          : stats?.format === 'source-catalog'
+            ? '（接口源列表）'
+            : '';
       toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源${formatLabel}${detail ? `；${detail}` : ''}`, 'success');
       setSubUrl('');
     } catch (err) {
@@ -794,10 +913,9 @@ function SourceSubscriptions() {
 
   const copyPublished = () => {
     if (!published) return;
-    navigator.clipboard
-      .writeText(published.url)
-      .then(() => toast('订阅链接已复制', 'success'))
-      .catch(() => toast('复制失败，请手动选中复制', 'warning'));
+    copyToClipboard(published.url).then((ok) =>
+      ok ? toast('订阅链接已复制', 'success') : toast('复制失败，请手动选中复制', 'warning'),
+    );
   };
 
   const exportSources = () => {
@@ -929,6 +1047,13 @@ function SourceSubscriptions() {
             const vodCount = store.customAPIs.filter((a) => keyBelongsToSubscription(a.key, subKeyPrefix(sub.url))).length;
             const liveCount = store.liveSubscriptions.filter((s) => s.fromSubscriptions.includes(sub.url)).length;
             const isSyncing = syncing.has(sub.url);
+            // 自动刷新状态：暂停（连续失败触顶）> 距下次刷新 > 未设周期不提示
+            const paused = Boolean(
+              sub.refreshDays && (sub.failStreak ?? 0) >= AUTO_REFRESH_MAX_FAIL_STREAK
+            );
+            const nextAt =
+              sub.refreshDays && sub.lastSync ? sub.lastSync + sub.refreshDays * 86_400_000 : undefined;
+            const remainingMs = nextAt ? nextAt - Date.now() : 0;
             return (
               <li
                 key={sub.url}
@@ -967,6 +1092,29 @@ function SourceSubscriptions() {
                     {sub.lastStatus === 'error' && sub.lastError && (
                       <p className="text-[11px] text-danger mt-1 break-all">{sub.lastError}</p>
                     )}
+                    {/* 自动刷新：默认「手动」，显式设了周期才会在打开站点时静默刷新 */}
+                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-faint">
+                      <Icon name="clock" className="w-3 h-3 shrink-0" />
+                      <span>自动刷新</span>
+                      <Dropdown
+                        value={sub.refreshDays ? String(sub.refreshDays) : 'off'}
+                        onChange={(v) =>
+                          store.setSubscriptionRefreshDays(sub.url, v === 'off' ? undefined : Number(v))
+                        }
+                        options={REFRESH_OPTIONS}
+                        ariaLabel="自动刷新周期"
+                        className="[&>button]:!py-0.5 [&>button]:!pl-2 [&>button]:!pr-1.5 [&>button]:text-[11px]"
+                      />
+                      {paused ? (
+                        <span className="text-warning">
+                          已暂停：连续失败 {sub.failStreak} 次，手动同步成功即恢复
+                        </span>
+                      ) : remainingMs > 0 ? (
+                        <span>约 {Math.max(1, Math.ceil(remainingMs / 86_400_000))} 天后刷新</span>
+                      ) : sub.refreshDays ? (
+                        <span>下次打开站点时刷新</span>
+                      ) : null}
+                    </div>
                   </div>
                   <Switch
                     checked={sub.enabled !== false}
@@ -1131,7 +1279,7 @@ function summarizeConfig(text: string): string {
   if (cfg.name !== 'LibreTV-Settings') throw new Error('不是 LibreTV 的配置文件');
 
   const parts: string[] = [];
-  const settingsRaw = cfg.data?.['libretv-settings'];
+  const settingsRaw = cfg.data?.[PERSIST_KEY];
   if (typeof settingsRaw === 'string') {
     try {
       const state = (JSON.parse(settingsRaw) as { state?: Record<string, unknown> }).state ?? {};

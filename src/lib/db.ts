@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { SourceConfig } from './types';
 // 仅类型引入：store.ts 运行时会引用本模块，反向只取类型不会形成运行时循环
 import type { LiveProbeEntry } from './store';
+import { PERSIST_KEY, flushPendingPersist } from './persist-storage';
 
 /**
  * IndexedDB 持久化（替代旧版 localStorage 数据库）：
@@ -39,11 +40,43 @@ export interface SearchHistoryEntry {
   timestamp: number;
 }
 
+export interface SegmentMetaEntry {
+  /** Cache Storage 中的 key（归一化的分片绝对地址，或同源代理地址） */
+  key: string;
+  /** 所属剧集：`${source}:${vodId}:${episodeIndex}`，用于按集淘汰 */
+  episodeKey: string;
+  /** 片段序号（1 基，便于排查） */
+  index: number;
+  bytes: number;
+  /** 预取时记录的真实耗时（毫秒），loader 命中缓存时合成进 hls.js stats 防 ABR 误判 */
+  costMs: number;
+  lastAccess: number;
+}
+
+export type DownloadStatus = 'waiting' | 'downloading' | 'paused' | 'completed' | 'error';
+
+export interface DownloadTaskEntry {
+  id: string;
+  /** 播放页 m3u8 地址（直连或代理形式，入队时的原样） */
+  url: string;
+  title: string;
+  /** 输出格式 */
+  format: 'TS' | 'MP4';
+  status: DownloadStatus;
+  finished: number;
+  total: number;
+  errorNum: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export const db = new Dexie('libretv') as Dexie & {
   history: EntityTable<HistoryEntry, 'id'>;
   progress: EntityTable<ProgressEntry, 'key'>;
   searchHistory: EntityTable<SearchHistoryEntry, 'text'>;
   liveProbe: EntityTable<LiveProbeEntry & { url: string }, 'url'>;
+  segmentMeta: EntityTable<SegmentMetaEntry, 'key'>;
+  downloads: EntityTable<DownloadTaskEntry, 'id'>;
 };
 
 db.version(1).stores({
@@ -55,6 +88,12 @@ db.version(1).stores({
 // v2 仅新增表；Dexie 会自动继承低版本的表结构
 db.version(2).stores({
   liveProbe: 'url',
+});
+
+// v3：视频片段缓存元数据（Cache Storage 存字节、这里存 LRU 索引）与离线下载任务
+db.version(3).stores({
+  segmentMeta: 'key, episodeKey, lastAccess',
+  downloads: 'id, createdAt',
 });
 
 export const MAX_HISTORY = 100;
@@ -170,13 +209,15 @@ export async function clearLiveProbeResultsDb(): Promise<void> {
 // —— 配置导入导出（兼容旧版 LibreTV-Settings JSON 结构的导出格式） ——
 
 export async function exportConfig(): Promise<string> {
+  // 导出前 flush：把节流缓冲中的最新设置落盘，避免导出的是 800ms 前的旧快照
+  flushPendingPersist();
   const history = await db.history.toArray();
-  const settings = localStorage.getItem('libretv-settings');
+  const settings = localStorage.getItem(PERSIST_KEY);
 
   const data: Record<string, unknown> = {
     viewingHistory: JSON.stringify(history),
   };
-  if (settings) data['libretv-settings'] = settings;
+  if (settings) data[PERSIST_KEY] = settings;
 
   return JSON.stringify({
     name: 'LibreTV-Settings',
@@ -194,8 +235,11 @@ export async function importConfig(content: string): Promise<void> {
   if (config.name !== 'LibreTV-Settings') throw new Error('配置文件格式不正确');
   const data = config.data || {};
 
-  if (typeof data['libretv-settings'] === 'string') {
-    localStorage.setItem('libretv-settings', data['libretv-settings']);
+  if (typeof data[PERSIST_KEY] === 'string') {
+    // 关键：先 flush 节流缓冲中的旧状态再写导入配置，否则缓冲会在
+    // 之后 flush 时用导入前的旧状态覆盖刚写入的配置（导入静默丢失）
+    flushPendingPersist();
+    localStorage.setItem(PERSIST_KEY, data[PERSIST_KEY]);
   }
 
   if (typeof data['viewingHistory'] === 'string') {
@@ -218,19 +262,6 @@ export async function importConfig(content: string): Promise<void> {
         timestamp: typeof item.timestamp === 'number' ? item.timestamp : Date.now(),
       });
     }
-  }
-}
-
-export function saveSettingsToLocalStorage(settings: unknown): void {
-  localStorage.setItem('libretv-settings', JSON.stringify(settings));
-}
-
-export function loadSettingsFromLocalStorage<T>(): T | undefined {
-  try {
-    const raw = localStorage.getItem('libretv-settings');
-    return raw ? (JSON.parse(raw) as T) : undefined;
-  } catch {
-    return undefined;
   }
 }
 

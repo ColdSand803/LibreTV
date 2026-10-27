@@ -149,3 +149,31 @@ body {
 .input {
   @apply bg-chip text-content border border-line rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors placeholder:text-muted;
 }
+
+/*
+ * 播放器控制条在窄屏没有多余横向空间：
+ * 上/下集控件会把右侧的「网页全屏」「全屏」挤出可视区。
+ * 只在窄于 640px 时收起次要控件，切集仍可用播放器下方的按钮。
+ */
+@media (max-width: 640px) {
+  .art-control-prev-episode,
+  .art-control-next-episode,
+  .art-control-volume,
+  .art-control-screenshot,
+  .art-control-pip {
+    display: none !important;
+  }
+
+  .art-control-time {
+    font-size: 11px;
+    padding: 0 2px;
+  }
+
+  .art-control-playAndPause,
+  .art-control-setting,
+  .art-control-fullscreenWeb,
+  .art-control-fullscreen {
+    width: 40px !important;
+    min-width: 40px !important;
+  }
+}

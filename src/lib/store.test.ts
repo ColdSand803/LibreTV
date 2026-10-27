@@ -25,6 +25,7 @@ beforeEach(() => {
     liveFavorites: [],
     liveRecent: [],
     yellowFilter: false,
+    skipMarks: {},
   });
 });
 
@@ -162,6 +163,32 @@ describe('订阅同步的 store 语义', () => {
     expect(store().liveSubscriptions).toHaveLength(1);
     expect(store().liveSubscriptions[0].name).toBe('手动');
     expect(store().liveSubscriptions[0].fromSubscriptions).toEqual([]);
+  });
+
+  it('同步缺席即摘除归属：共享源降级为其他订阅的引用，双方都缺席才移除', () => {
+    const shared = 'https://live.example.com/shared.m3u';
+    store().applySubscriptionLive('https://a.example.com/list.json', [{ name: '共享', url: shared }]);
+    store().applySubscriptionLive('https://b.example.com/list.json', [{ name: '共享', url: shared }]);
+    useAppStore.setState({ liveSelectedUrls: [shared] });
+
+    // A 的远端列表删掉了共享源：摘除 A 的引用，源保留给 B，A 的计数归 0
+    expect(store().applySubscriptionLive('https://a.example.com/list.json', [])).toBe(0);
+    expect(store().liveSubscriptions).toHaveLength(1);
+    expect(store().liveSubscriptions[0].fromSubscriptions).toEqual(['https://b.example.com/list.json']);
+    expect(store().liveSelectedUrls).toContain(shared);
+
+    // B 也删掉后无人引用，源随同步移除并清理启用状态
+    expect(store().applySubscriptionLive('https://b.example.com/list.json', [])).toBe(0);
+    expect(store().liveSubscriptions).toHaveLength(0);
+    expect(store().liveSelectedUrls).not.toContain(shared);
+  });
+
+  it('手动添加的直播源缺席同步时不被移除', () => {
+    const m1 = 'https://live.example.com/1.m3u';
+    store().addLiveSubscription(m1, '手动');
+    store().applySubscriptionLive('https://a.example.com/list.json', []);
+    expect(store().liveSubscriptions).toHaveLength(1);
+    expect(store().liveSubscriptions[0].url).toBe(m1);
   });
 
   it('删除订阅：共享的直播源保留给其他订阅，独占的才移除', () => {
@@ -362,5 +389,135 @@ describe('订阅整体开关', () => {
     expect(isInDisabledSubscription(store(), `${subKeyPrefix(subUrl)}_1`)).toBe(true);
     expect(isInDisabledSubscription(store(), `${subKeyPrefix(otherUrl)}_1`)).toBe(false);
     expect(isInDisabledSubscription(store(), 'manual_0')).toBe(false);
+  });
+});
+
+describe('跳过片段标记', () => {
+  beforeEach(() => {
+    useAppStore.setState({ skipMarks: {} });
+  });
+
+  it('写入片段列表并刷新 updatedAt', () => {
+    store().setSkipMark('t:abc', [{ type: 'opening', start: 0, end: 45 }]);
+    expect(store().skipMarks['t:abc']?.segments).toEqual([{ type: 'opening', start: 0, end: 45 }]);
+    const firstUpdatedAt = store().skipMarks['t:abc']?.updatedAt ?? 0;
+    expect(firstUpdatedAt).toBeGreaterThan(0);
+
+    store().setSkipMark('t:abc', [
+      { type: 'opening', start: 0, end: 45 },
+      { type: 'ending', start: 1200, end: -1 },
+    ]);
+    expect(store().skipMarks['t:abc']?.segments).toHaveLength(2);
+    expect(store().skipMarks['t:abc']?.updatedAt).toBeGreaterThanOrEqual(firstUpdatedAt);
+  });
+
+  it('写入空数组删除整条，不创建空壳条目', () => {
+    store().setSkipMark('t:abc', [{ type: 'opening', start: 0, end: 45 }]);
+    store().setSkipMark('t:abc', []);
+    expect(store().skipMarks['t:abc']).toBeUndefined();
+
+    store().setSkipMark('t:missing', []);
+    expect(store().skipMarks).toEqual({});
+  });
+
+  it('写入时默认开启本剧跳过，改片段不会重置已关闭状态', () => {
+    store().setSkipMark('t:abc', [{ type: 'opening', start: 0, end: 45 }]);
+    expect(store().skipMarks['t:abc']?.enabled).toBe(true);
+
+    store().setSkipMarkEnabled('t:abc', false);
+    expect(store().skipMarks['t:abc']?.enabled).toBe(false);
+
+    // 修一条标错的边界后，用户"关掉本剧"的选择要保留
+    store().setSkipMark('t:abc', [{ type: 'opening', start: 0, end: 30 }]);
+    expect(store().skipMarks['t:abc']?.enabled).toBe(false);
+  });
+
+  it('setSkipMarkEnabled 对不存在的条目无副作用', () => {
+    store().setSkipMarkEnabled('t:missing', false);
+    expect(store().skipMarks).toEqual({});
+  });
+
+  it('clearSkipMark 只删指定条目，clearAllSkipMarks 清空全部', () => {
+    store().setSkipMark('t:a', [{ type: 'opening', start: 0, end: 20 }]);
+    store().setSkipMark('t:b', [{ type: 'ending', start: 200, end: -1 }]);
+
+    store().clearSkipMark('t:a');
+    expect(store().skipMarks).not.toHaveProperty('t:a');
+    expect(store().skipMarks).toHaveProperty('t:b');
+
+    store().clearAllSkipMarks();
+    expect(store().skipMarks).toEqual({});
+  });
+});
+
+describe('订阅自动刷新状态', () => {
+  const subUrl = 'https://sub.example.com/list.json';
+  const otherUrl = 'https://other.example.com/list.json';
+
+  beforeEach(() => {
+    useAppStore.setState({ customAPIs: [], selectedKeys: [], subscriptions: [] });
+    store().addSubscription(subUrl, 'S');
+    store().addSubscription(otherUrl, 'O');
+  });
+
+  const find = (url: string) => store().subscriptions.find((s) => s.url === url);
+
+  it('未设置刷新周期的订阅保持纯手动（refreshDays 为 undefined）', () => {
+    expect(find(subUrl)?.refreshDays).toBeUndefined();
+  });
+
+  it('设置刷新周期只影响目标订阅，传 undefined 可退回手动', () => {
+    store().setSubscriptionRefreshDays(subUrl, 7);
+    expect(find(subUrl)?.refreshDays).toBe(7);
+    expect(find(otherUrl)?.refreshDays).toBeUndefined();
+
+    store().setSubscriptionRefreshDays(subUrl, undefined);
+    expect(find(subUrl)?.refreshDays).toBeUndefined();
+  });
+
+  it('markSubscriptionFailed 记录错误并累加连续失败次数，不清空已导入的源', () => {
+    store().addCustomApi({ key: `${subKeyPrefix(subUrl)}_0`, name: 'A', url: 'https://a.example.com/api.php/provide/vod' });
+
+    store().markSubscriptionFailed(subUrl, 'boom');
+    expect(find(subUrl)?.lastStatus).toBe('error');
+    expect(find(subUrl)?.lastError).toBe('boom');
+    expect(find(subUrl)?.failStreak).toBe(1);
+
+    store().markSubscriptionFailed(subUrl, 'boom again');
+    expect(find(subUrl)?.failStreak).toBe(2);
+    // 关键：失败只是状态，源还在，用户可以继续用旧数据
+    expect(store().customAPIs).toHaveLength(1);
+    // 只影响本订阅
+    expect(find(otherUrl)?.failStreak).toBeUndefined();
+  });
+
+  it('countFailure: false（鉴权失败）不计入连续失败，避免自动刷新被误暂停', () => {
+    store().markSubscriptionFailed(subUrl, 'unauthorized');
+    expect(find(subUrl)?.failStreak).toBe(1);
+
+    // 401/503 属于会话问题，连续三次也不该把 failStreak 推高
+    for (let i = 0; i < 3; i++) store().markSubscriptionFailed(subUrl, 'unauthorized', { countFailure: false });
+    expect(find(subUrl)?.failStreak).toBe(1);
+    // 但状态仍要如实反映失败
+    expect(find(subUrl)?.lastStatus).toBe('error');
+  });
+
+  it('markSubscriptionSynced 清零连续失败次数，被暂停的自动刷新随之恢复', () => {
+    for (let i = 0; i < 3; i++) store().markSubscriptionFailed(subUrl, 'boom');
+    expect(find(subUrl)?.failStreak).toBe(3);
+
+    store().markSubscriptionSynced(subUrl);
+    expect(find(subUrl)?.failStreak).toBe(0);
+    expect(find(subUrl)?.lastStatus).toBe('ok');
+    expect(find(subUrl)?.lastError).toBeUndefined();
+    expect(find(subUrl)?.lastSync).toBeGreaterThan(0);
+  });
+
+  it('改刷新周期不会重置失败计数，改完仍按原失败次数判断是否暂停', () => {
+    for (let i = 0; i < 2; i++) store().markSubscriptionFailed(subUrl, 'boom');
+    store().setSubscriptionRefreshDays(subUrl, 3);
+
+    expect(find(subUrl)?.refreshDays).toBe(3);
+    expect(find(subUrl)?.failStreak).toBe(2);
   });
 });

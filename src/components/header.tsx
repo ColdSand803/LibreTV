@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { SourceManagerDrawer } from './source-manager';
 import { HistoryPanel } from './history-panel';
+import { requestShowDownloadManager } from './download-manager';
 import { Icon } from './icon';
 import { SearchHistoryDropdown, useSearchHistory } from './search-history';
 import { cn } from '@/lib/utils';
@@ -208,6 +209,17 @@ function HeaderContent({ showSearch = true }: { showSearch?: boolean }) {
                 aria-label="观看历史"
               >
                 <Icon name="clock" className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            )}
+            {!searchExpanded && (
+              <button
+                type="button"
+                onClick={requestShowDownloadManager}
+                className="p-1.5 sm:p-2 text-zinc-300 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                title="下载管理"
+                aria-label="下载管理"
+              >
+                <Icon name="download" className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             )}
 
